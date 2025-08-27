@@ -3,28 +3,28 @@ pipeline {
     
     parameters {
         string(name: 'ECR_REPO_NAME', defaultValue: 'amazon-prime', description: 'Enter repository name')
-        string(name: 'AWS_ACCOUNT_ID', defaultValue: '123456789012', description: 'Enter AWS Account ID') // Added missing quote
+        string(name: 'AWS_ACCOUNT_ID', defaultValue: '966193076481', description: 'Enter AWS Account ID') // Added missing quote
     }
     
     tools {
-        jdk 'JDK'
-        nodejs 'NodeJS'
+        jdk 'jdk17'
+        nodejs 'nodejs24'
     }
     
     environment {
-        SCANNER_HOME = tool 'SonarQube Scanner'
+        SCANNER_HOME = tool 'sonarqube-scanner'
     }
     
     stages {
         stage('1. Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/pandacloud1/DevopsProject2.git'
+                git branch: 'main', url: 'https://github.com/Binank-1988/DevopsProject2.git'
             }
         }
         
         stage('2. SonarQube Analysis') {
             steps {
-                withSonarQubeEnv ('sonar-server') {
+                withSonarQubeEnv ('sonarqube-server') {
                     sh """
                     $SCANNER_HOME/bin/sonar-scanner \
                     -Dsonar.projectName=amazon-prime \
@@ -37,7 +37,7 @@ pipeline {
         stage('3. Quality Gate') {
             steps {
                 waitForQualityGate abortPipeline: false, 
-                credentialsId: 'sonar-token'
+                credentialsId: 'jenkins-token'
             }
         }
         
