@@ -6,7 +6,7 @@ aws eks update-kubeconfig --region "us-east-1" --name "amazon-prime-cluster"
 
 # ArgoCD Access
 argo_url=$(kubectl get svc -n argocd | grep argocd-server | awk '{print$4}' | head -n 1)
-argo_initial_password=$(argocd admin initial-password -n argocd)
+argo_initial_password=$( kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 
 # ArgoCD Credentials
 argo_user="admin"
