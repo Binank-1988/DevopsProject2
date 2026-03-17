@@ -1,15 +1,12 @@
 pipeline {
     agent any
-
     environment {
         KUBECTL = '/usr/local/bin/kubectl'
-        AWS_DEFAULT_REGION = 'ap-south-1'
+        AWS_DEFAULT_REGION = 'us-east-1'
     }
-
     parameters {
-        string(name: 'CLUSTER_NAME', defaultValue: 'amazon-prime-cluster', description: 'Enter your EKS cluster name')
+        string(name: 'CLUSTER_NAME', defaultValue: 'hr-stag-eksdemo1', description: 'Enter your EKS cluster name')
     }
-
     stages {
         stage("Deploy to EKS") {
             steps {
@@ -28,23 +25,36 @@ pipeline {
                         sh """
                         helm repo add stable https://charts.helm.sh/stable || true
                         helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
-                        
-                        if kubectl get namespace prometheus > /dev/null 2>&1; then
-                            helm upgrade stable prometheus-community/kube-prometheus-stack -n prometheus
-                        else
-                            kubectl create namespace prometheus
-                            helm install stable prometheus-community/kube-prometheus-stack -n prometheus
-                        fi
+                        helm repo update
 
-                        kubectl patch svc stable-kube-prometheus-sta-prometheus -n prometheus -p '{"spec": {"type": "LoadBalancer"}}'
-                        kubectl patch svc stable-grafana -n prometheus -p '{"spec": {"type": "LoadBalancer"}}'
+                        kubectl create namespace prometheus --dry-run=client -o yaml | kubectl apply -f -
+
+                        helm upgrade --install stable prometheus-community/kube-prometheus-stack \
+                            -n prometheus \
+                            --timeout 5m \
+                            --atomic \
+                            --cleanup-on-fail
+
+                        kubectl patch svc stable-kube-prometheus-sta-prometheus -n prometheus \
+                            -p '{"spec": {"type": "LoadBalancer"}}'
+                        kubectl patch svc stable-grafana -n prometheus \
+                            -p '{"spec": {"type": "LoadBalancer"}}'
                         """
 
                         // Configure ArgoCD
                         sh """
-                        kubectl create namespace argocd || true
-                        kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-                        kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+                        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+
+                        # Use --server-side to avoid CRD annotation size limit (>256KB)
+                        kubectl apply -n argocd \
+                            -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml \
+                            --server-side \
+                            --force-conflicts
+
+                        kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
+
+                        kubectl patch svc argocd-server -n argocd \
+                            -p '{"spec": {"type": "LoadBalancer"}}'
                         """
                     }
                 }
