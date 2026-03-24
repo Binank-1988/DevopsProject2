@@ -1,0 +1,31 @@
+pipeline {
+    agent any
+    environment {
+        // If you moved the file to /var/lib/jenkins/.kube/config, 
+        // you don't even need to define KUBECONFIG here!
+        KUBECTL = '/usr/local/bin/kubectl'
+    }
+    stages {
+        stage("Deploy to Cluster") {
+            steps {
+                script {
+                    sh """
+                        ${KUBECTL} get nodes
+                        
+                        # Your Helm and Kubectl commands follow...
+                        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
+                        helm repo update
+                        
+                        kubectl create namespace prometheus --dry-run=client -o yaml | kubectl apply -f -
+                        
+                        # Note: Added --set to handle LoadBalancer via Helm instead of patching later
+                        helm upgrade --install stable prometheus-community/kube-prometheus-stack \
+                            -n prometheus \
+                            --set prometheus.service.type=LoadBalancer \
+                            --set grafana.service.type=LoadBalancer
+                    """
+                }
+            }
+        }
+    }
+}
